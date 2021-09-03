@@ -48,9 +48,9 @@ class TestMergeCrystals:
         mc = MergeCrystals()
         mc.add_crystal(self.data1, self.cell)
         mc.add_crystal(self.data2, self.cell, fshifts_list=self.fshifts_list)
-        assert np.isclose(np.sum(phases_utils.wrap_phases(np.abs(np.diff(mc.phases_all,axis=1)))), 0)
-        assert np.isclose(np.sum(np.abs(np.diff(mc.I_all,axis=1))), 0)
+        assert np.isclose(np.sum(phases_utils.wrap_phases(np.abs(np.diff(mc.phases_all,axis=1)))), 0, atol=1e-06)
+        assert np.isclose(np.sum(np.abs(np.diff(mc.I_all,axis=1))), 0, atol=1e-06)
         
         mc.add_crystal(self.data3, self.cell, fshifts_list=self.fshifts_list)
-        assert np.isclose(np.sum(phases_utils.wrap_phases(np.abs(np.diff(mc.phases_all,axis=1)))), 0)
-        assert np.isclose(np.sum(np.abs(np.diff(mc.I_all,axis=1))), 0)
+        assert np.isclose(np.sum(phases_utils.wrap_phases(np.abs(np.diff(mc.phases_all,axis=1)))), 0, atol=1e-06)
+        assert np.isclose(np.sum(np.abs(np.diff(mc.I_all,axis=1))), 0, atol=1e-06)

@@ -267,6 +267,18 @@ class MergeCrystals:
         
         return
 
+    def compile_data(self):
+        """
+        Compile the Miller indices, associated intensities, and phases into a
+        numpy.array.
+        
+        Returns
+        -------
+        hklIp : numpy.ndarray, shape (n_refl, 5)
+            data array of [h,k,l,intensity,phase]; phase is in degrees 
+        """
+        return np.hstack((self.hkl, self.I[:,np.newaxis], self.phases[:,np.newaxis]))
+
     def add_crystal(self, hklIp, cell, grid_spacing=None, fshifts_list=None):
         """
         Add data from new crystal. The origin is dictated by the first crystal; 
