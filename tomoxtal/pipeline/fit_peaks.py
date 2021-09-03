@@ -132,7 +132,7 @@ class PeakFitter:
         pvols, ivols = dict(), dict()
         
         # Fourier transform real space volume
-        volume = mrcfile.open(volume).data.copy()
+        volume = mrcfile.open(volume).data.copy().astype(np.float32)
         volume = self.eliminate_phase_splitting(volume)
         ftI, ftp = phases_utils.ft_to_I_phase(phases_utils.compute_ft(volume), deg=True)
         

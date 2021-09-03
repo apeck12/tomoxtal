@@ -33,7 +33,7 @@ class LocateXtalOrigin:
         self.crystal_symmetry = crystal.symmetry(unit_cell=cell,
                                                  space_group_symbol=sg_symbol)
         self.space_group = self.crystal_symmetry.space_group()
-        self.sym_ops = cctbx_tools.get_sym_ops(spacegroup, friedels=True)
+        self.sym_ops = cctbx_tools.get_sym_ops(sg_symbol, friedels=True)
         self.get_phase_restrictions()
         self.get_symmetry_mappings()
 
