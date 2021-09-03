@@ -154,6 +154,7 @@ class MergeCrystals:
         
         # get data in common and evaluate origins
         hkl1, I1, p1, hkl2, I2, p2 = self.retrieve_common_data(hkl_next, I_next, phases_next)
+        print(f"Attempting to merge based on {hkl1.shape[0]} shared reflections")
         args_eval = zip(fshifts_list, num*[p1], num*[hkl2], num*[p2])
         metrics = np.array(pool.map(self.wrap_compute_residual, args_eval))
                
