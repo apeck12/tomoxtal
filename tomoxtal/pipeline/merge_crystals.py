@@ -162,32 +162,6 @@ class MergeCrystals:
         ordering = np.argsort(metrics)
         return fshifts_list[ordering], metrics[ordering]
     
-    def generate_candidate_origins(self, cell, grid_spacing):
-        """
-        Generate candidate origins by providing a list of nodes from the
-        unit cell discretized by grid_spacing. While grid_spacing is given
-        in Angstrom, the fractional unit cell shifts are returned. The cell
-        is sampled at the same frequency along each unit cell axis.
-        
-        Parameters
-        ----------
-        cell : tuple, length 6
-            unit cell parameters (a,b,c,alpha,beta,gamma)
-        grid_spacing : float
-            sampling frequency in Angstrom
-        
-        Returns
-        -------
-        fshifts_list : numpy.ndarray of shape (n_origins,3)
-            candidate origins in fractional unit cell space
-        """
-        xshifts, yshifts, zshifts = [np.arange(0, cell[i], grid_spacing) for i in range(3)]
-        fshifts_list = np.array(list(itertools.product(xshifts/cell[0], 
-                                                       yshifts/cell[1],
-                                                       zshifts/cell[2]))) 
-        
-        return fshifts_list
-    
     def merge_phases(self, hklIp, cell, grid_spacing=None, fshifts_list=None):
         """
         Merge phases from new crystal by finding a common phase origin and then
@@ -217,7 +191,7 @@ class MergeCrystals:
         # find best candidate origin and shift all phases to it
         hkl_next, I_next, phases_next = hklIp[:,:3], hklIp[:,3], hklIp[:,4]
         if fshifts_list is None:
-            fshifts_list = self.generate_candidate_origins(cell, grid_spacing)
+            fshifts_list = phases_utils.generate_candidate_origins(cell, grid_spacing)
         fshifts_list, scores = self.rank_common_origins(hkl_next, I_next, phases_next, fshifts_list)
         p_shifted = self.shift_phases(hkl_next, phases_next, fshifts_list[0])
         print(f"Merging based on shift {fshifts_list[0]} with phase residual of {scores[0]} degrees")

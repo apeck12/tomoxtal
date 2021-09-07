@@ -151,3 +151,29 @@ def add_random_phase_shift(hkl, phases, fshifts=None):
 
     shifted_phases = wrap_phases(phases - 360 * np.dot(hkl, fshifts).ravel())
     return shifted_phases, fshifts
+
+
+def generate_candidate_origins(cell, grid_spacing):
+    """
+    Generate candidate origins by providing a list of nodes from the
+    unit cell discretized by grid_spacing. While grid_spacing is given
+    in Angstrom, the fractional unit cell shifts are returned. The cell
+    is sampled at the same frequency along each unit cell axis.
+
+    Parameters
+    ----------
+    cell : tuple, length 6
+        unit cell parameters (a,b,c,alpha,beta,gamma)
+    grid_spacing : float
+        sampling frequency in Angstrom
+    
+    Returns
+    -------
+    fshifts_list : numpy.ndarray of shape (n_origins,3)
+        candidate origins in fractional unit cell space
+    """
+    xshifts, yshifts, zshifts = [np.arange(0, cell[i], grid_spacing) for i in range(3)]
+    fshifts_list = np.array(list(itertools.product(xshifts/cell[0], 
+                                                   yshifts/cell[1],
+                                                   zshifts/cell[2]))) 
+    return fshifts_list
