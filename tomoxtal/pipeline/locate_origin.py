@@ -15,7 +15,7 @@ class LocateXtalOrigin:
     both for symmetry-equivalent and centric reflections.
     """
     
-    def __init__(self, data, sg_symbol, cell):
+    def __init__(self, data, sg_symbol, cell, weighted=True):
         """
         Initialize class.
         
@@ -27,45 +27,28 @@ class LocateXtalOrigin:
             space group symbol in Hermann-Mauguin notation, e.g. 'P 43 21 2'
         cell : tuple, length 6
             unit cell parameters (a,b,c,alpha,beta,gamma)
+        weighted : boolean
+            whether to intensity-weight the phase residual calculation; default is True
         """
         self.hkl = data[:,:3].astype(np.int32)
         self.intensities, self.phases = np.ascontiguousarray(data[:,3]), np.ascontiguousarray(data[:,4])
-        self.crystal_symmetry = crystal.symmetry(unit_cell=cell,
-                                                 space_group_symbol=sg_symbol)
+        self.crystal_symmetry = cctbx_tools.generate_crystal_symmetry_object(cell, sg_symbol)
         self.space_group = self.crystal_symmetry.space_group()
+        
+        self.miller_array = cctbx_tools.data_to_miller_array(data, self.crystal_symmetry)
         self.sym_ops = cctbx_tools.get_sym_ops(sg_symbol, friedels=True)
         self.get_phase_restrictions()
         self.get_symmetry_mappings()
+        self.weighted = weighted
 
-
-    def generate_miller_array(self, data):
-        """
-        Generate a Miller array from the input data.
-
-        Parameters
-        ----------
-        data : numpy.ndarray, shape (n_refl)
-            data array of variable type, i.e. intensities or phases
-
-        Returns
-        -------
-        ma : cctbx.miller.array object
-            data reformatted as a cctbx Miller array of structure factors
-        """
-        ma = miller.array(miller_set=miller.set(self.crystal_symmetry, 
-                                                flex.miller_index(self.hkl),
-                                                anomalous_flag=False), data=flex.double(data))
-        return ma
-
-
+        
     def get_phase_restrictions(self):
         """
         Get phase restrictions (modulo pi) for centric reflections. Store
         centric Millers and their indices as class variables, along with 
         an array of the associated phase restrictions in degrees.
         """
-        ma_p = self.generate_miller_array(self.phases)
-        self.ind_centric = np.array(list(ma_p.centric_flags().data()))
+        self.ind_centric = np.array(list(self.miller_array.centric_flags().data()))
         self.hkl_centric = self.hkl[self.ind_centric]
         
         p_restrictions = np.array([self.space_group.phase_restriction(tuple(m.astype(np.int32))).ht_angle() for m in self.hkl_centric])
@@ -83,7 +66,6 @@ class LocateXtalOrigin:
         ----------
         phases : numpy.ndarray, shape (n_refl,)
             phases in degrees, ordered as self.hkl
-
         Returns
         -------
         c_residuals : numpy.ndarray, shape (n_centric,)
@@ -99,8 +81,7 @@ class LocateXtalOrigin:
         store the information necessary for computing the symmetry phase residual.
         """
         # identify all reflections in the asymmetric unit
-        ma_p = self.generate_miller_array(self.phases)
-        hkl_asu = np.array(ma_p.merge_equivalents().array().indices())
+        hkl_asu = np.array(self.miller_array.merge_equivalents().array().indices())
 
         # generate symmetry-equivalents for each asu reflection
         num_ops = len(self.sym_ops.keys())
@@ -140,7 +121,6 @@ class LocateXtalOrigin:
         ----------
         phases : numpy.ndarray, shape (n_refl,)
             phases in degrees, ordered as self.hkl
-
         Returns
         -------
         s_residuals : numpy.ndarray, shape (n_refl,)
@@ -171,7 +151,6 @@ class LocateXtalOrigin:
         ----------
         fshifts : numpy.ndarray, shape (3,)
             fractional shifts applied along (a,b,c)
-
         Returns
         -------
         shifted_phases : numpy.ndarray, shape (n_refls,)   
@@ -189,7 +168,6 @@ class LocateXtalOrigin:
         ----------
         fshifts : numpy.ndarray, shape (3,)
             fractional shifts applied along (a,b,c)
-
         Returns
         -------
         score : float
@@ -198,20 +176,29 @@ class LocateXtalOrigin:
         phases = self.shift_phases(fshifts)
         c_residual = self.centric_residual(phases)
         s_residual = self.symmetry_residual(phases)
-        scores = np.concatenate((c_residual,s_residual))
         
-        return np.mean(scores)
-
+        scores = np.concatenate((c_residual,s_residual))
+        if self.weighted:
+            weights = np.concatenate((self.intensities[self.ind_centric], 
+                                      self.intensities[self.sym_mapping[:,-1]]))
+            return np.average(scores, weights=weights)
+        else:
+            return np.average(scores)
     
-    def scan_candidate_origins(self, grid_spacing, n_processes=1):
+
+    def scan_candidate_origins(self, grid_spacing=None, fshifts_list=None, n_processes=1):
         """
-        Perform a grid scan to assess each fractional origin shift as a candidate 
-        crystallographic phase origin.
+        Assess a series of fractional shifts as candidate crystallographic phase origins.
+        Either grid_spacing or fshifts_list must be supplied; if the latter is not, then 
+        the candidate origins assessed will be based on discretizing the unit cell based
+        on grid_spacing.
         
         Parameters
         ----------
         grid_spacing : float
             sampling frequency along each unit cell axis in Angstrom
+        fshifts_list : numpy.ndarray, shape (n_origins, 3)
+            fractional unit cell shifts to test as candidate merge origins
         n_processes : int
             number of CPU processors over which to parallelize calculation 
         
@@ -223,11 +210,8 @@ class LocateXtalOrigin:
             mean phase residuals for fractional shifts that were evaluated
         """
         # set up list of fractional shifts
-        cell = self.crystal_symmetry.unit_cell().parameters()[:3]
-        xshifts, yshifts, zshifts = [np.arange(0, cell[i], grid_spacing) for i in range(3)]
-        fshifts_list = np.array(list(itertools.product(xshifts/cell[0], 
-                                                       yshifts/cell[1],
-                                                       zshifts/cell[2]))) 
+        if fshifts_list is None:
+            fshifts_list = phases_utils.generate_candidate_origins(cell, grid_spacing)
         print(f"Finding origin: {len(fshifts_list)} grid points to evaluate")
         
         # evaluate shifts using multiprocessing
@@ -237,4 +221,3 @@ class LocateXtalOrigin:
         # reorder in decreasing likelihood of being the crystallographic origin
         ordering = np.argsort(metrics)
         return fshifts_list[ordering], metrics[ordering]
-

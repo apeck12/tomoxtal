@@ -238,3 +238,28 @@ def compute_map(ma, savename = None, grid_step = 0.3):
         fft_map.as_ccp4_map(savename)
 
     return fft_map
+
+
+def generate_miller_array(crystal_symmetry, hkl, data):
+    """
+    Generate a Miller array from the input data.
+    
+    Parameters
+    ----------
+    crystal_symmetry : crystal.symmetry object
+        instance of cctbx's crystal.symmetry class
+    hkl : numpy.ndarray, shape (n_refl, 3)
+        Miller indices, ordered as data
+    data : numpy.ndarray, shape (n_refl)
+        data array of variable type, i.e. intensities or phases
+        
+    Returns
+    -------
+    ma : cctbx.miller.array object
+        data reformatted as a cctbx Miller array of structure factors
+    """ 
+    ma = miller.array(miller_set=miller.set(crystal_symmetry, 
+                                            flex.miller_index(hkl.astype(np.int32)),
+                                            anomalous_flag=False), 
+                      data=flex.double(np.ascontiguousarray(data)))
+    return ma
