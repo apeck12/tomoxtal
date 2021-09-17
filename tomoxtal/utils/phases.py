@@ -1,5 +1,5 @@
 import numpy as np
-import random, pyfftw
+import random, pyfftw, itertools
 
 def compute_ft(data):
     """ 
