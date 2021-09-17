@@ -211,6 +211,7 @@ class LocateXtalOrigin:
         """
         # set up list of fractional shifts
         if fshifts_list is None:
+            cell = fo.crystal_symmetry.unit_cell().parameters()
             fshifts_list = phases_utils.generate_candidate_origins(cell, grid_spacing)
         print(f"Finding origin: {len(fshifts_list)} grid points to evaluate")
         
