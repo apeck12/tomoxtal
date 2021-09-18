@@ -18,7 +18,7 @@ class MergeCrystals:
         self.n_processes = n_processes
         self.n_crystals = 0
         
-    def retrieve_common_indices(self, hkl_next, I_next, phases_next):
+    def retrieve_common_indices(self, hkl_next):
         """ 
         Determine the indices of the reflections common between the current
         dataset and the one to be added.
@@ -27,10 +27,6 @@ class MergeCrystals:
         ----------
         hkl_next : numpy.ndarray, shape (3, n_refl)
             Miller indices from crystal to be added
-        I_next : numpy.ndarray, shape (3, n_refl)
-            intensities from crystal to be added, ordered as hkl_next
-        phases_next : numpy.ndarray, shape (3, n_refl)
-            phases from crystal to be added in degrees, ordered as hkl_next
         
         Returns
         -------
@@ -69,7 +65,7 @@ class MergeCrystals:
         p2 : numpy.ndarray, shape (3, n_refl_common)
             phases in common from crystal to be added, in degrees
         """
-        indices = self.retrieve_common_indices(hkl_next, I_next, phases_next)
+        indices = self.retrieve_common_indices(hkl_next)
         hkl1, I1, p1 = self.hkl[indices[0]], self.I[indices[0]], self.phases[indices[0]]
         hkl2, I2, p2 = hkl_next[indices[1]], I_next[indices[1]], phases_next[indices[1]]
         return hkl1, I1, p1, hkl2, I2, p2
@@ -197,7 +193,7 @@ class MergeCrystals:
         print(f"Merging based on shift {fshifts_list[0]} with phase residual of {scores[0]} degrees")
         
         # retrieve both shared and unique indices
-        indices = self.retrieve_common_indices(hkl_next, I_next, phases_next)
+        indices = self.retrieve_common_indices(hkl_next)
         unique_hkl = np.ones(hklIp.shape[0])
         unique_hkl[indices[1]] = 0
 
@@ -229,7 +225,7 @@ class MergeCrystals:
         
         # map new data Millers to class variables' ordering
         hkl_next, I_next, phases_next = hklIp[:,:3], hklIp[:,3], hklIp[:,4]
-        indices = self.retrieve_common_indices(hkl_next, I_next, phases_next)
+        indices = self.retrieve_common_indices(hkl_next)
         
         # combine intensity data
         I_combined = np.zeros((self.hkl.shape[0], self.n_crystals+1))
