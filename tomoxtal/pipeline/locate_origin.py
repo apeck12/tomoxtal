@@ -81,13 +81,13 @@ class LocateXtalOrigin:
         store the information necessary for computing the symmetry phase residual.
         """
         # identify all reflections in the asymmetric unit
-        hkl_asu = np.array(self.miller_array.merge_equivalents().array().indices())
+        self.hkl_asu = np.array(self.miller_array.merge_equivalents().array().indices())
 
         # generate symmetry-equivalents for each asu reflection
         num_ops = len(self.sym_ops.keys())
-        hkl_sym = np.zeros((len(hkl_asu), 3, num_ops))
+        hkl_sym = np.zeros((len(self.hkl_asu), 3, num_ops))
         for op in range(num_ops):
-            hkl_sym[:,:,op] = np.matmul(hkl_asu, self.sym_ops[op][:3,:3].T)
+            hkl_sym[:,:,op] = np.matmul(self.hkl_asu, self.sym_ops[op][:3,:3].T)
 
         # translational operations for symmetry-equivalents
         T = np.zeros((1,3,num_ops))
@@ -109,6 +109,32 @@ class LocateXtalOrigin:
         self.sym_mapping = inds.T[map_inds]
 
         return
+
+
+    def symmetry_map(self, phases):
+        """
+        Compute phase residuals for symmetry-equivalent reflections, specifically
+        the difference between every reflection and the average of its symmetry-
+        equivalents.
+        
+        Parameters
+        ----------
+        phases : numpy.ndarray, shape (n_refl,)
+            phases in degrees, ordered as self.hkl
+            
+        Returns
+        -------
+        p_shifted : numpy.ma masked array, shape (n_refl_asu, n_sym_ops)
+            phases in degrees mapped to the asymmetric unit, ordered as self.hkl_asu
+        """        
+        # map shifted phases to their asymmetric unit values; masked value is 360
+        p_sym = 360*np.ones(self.sym_shifts.shape)
+        p_sym[tuple(self.sym_mapping[:,:2].T)] = phases[self.sym_mapping[:,-1]]
+        p_sym = np.ma.masked_values(p_sym, 360)
+        p_shifted = phases_utils.wrap_phases(p_sym - 360 * self.sym_shifts)
+        p_shifted[:,int(self.sym_shifts.shape[1]/2):] *= -1 # deal with Friedels
+
+        return p_shifted
     
     
     def symmetry_residual(self, phases):
@@ -126,6 +152,8 @@ class LocateXtalOrigin:
         s_residuals : numpy.ndarray, shape (n_refl,)
             residuals for symmetry-equivalent reflections in degrees
         """
+        p_shifted = self.symmetry_map(phases)
+    
         # map shifted phases to their asymmetric unit values; masked value is 360
         p_sym = 360*np.ones(self.sym_shifts.shape)
         p_sym[tuple(self.sym_mapping[:,:2].T)] = phases[self.sym_mapping[:,-1]]
@@ -222,3 +250,37 @@ class LocateXtalOrigin:
         # reorder in decreasing likelihood of being the crystallographic origin
         ordering = np.argsort(metrics)
         return fshifts_list[ordering], metrics[ordering]
+
+
+    def reduce(self, fshifts=None):
+        """
+        Reduce data to asymmetric unit, optionally shifting phases to a
+        different phase origin.
+        
+        Parameters
+        ----------
+        fshifts : numpy.ndarray, shape (3,)
+            fractional shifts to apply along (a,b,c), optional
+
+        Returns
+        -------
+        hklIp_asu : numpy.ndarray, shape (n_refl_asu, 5)
+            Miller data [h,k,l,intensity,phase] reduced to asymmetric unit
+        """
+        # shift phases to new origin and to asymmetric unit
+        phases = self.phases.copy()
+        if fshifts is not None:
+            phases = self.shift_phases(fshifts)
+        phases_asu = np.mean(self.symmetry_map(phases), axis=1)
+        
+        # map intensities to asymmetric unit
+        I_sym = np.zeros(self.sym_shifts.shape)
+        I_sym[tuple(self.sym_mapping[:,:2].T)] = self.intensities[self.sym_mapping[:,-1]]
+        I_asu = np.mean(np.ma.masked_values(I_sym, 0), axis=1)
+        
+        # stack [h,k,l,I,p]
+        hklIp_asu = np.hstack((self.hkl_asu, 
+                               I_asu.data[:,np.newaxis],
+                               phases_asu.data[:,np.newaxis]))
+        
+        return hklIp_asu
