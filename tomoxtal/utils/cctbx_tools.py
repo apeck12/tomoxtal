@@ -263,3 +263,44 @@ def generate_miller_array(crystal_symmetry, hkl, data):
                                             anomalous_flag=False), 
                       data=flex.double(np.ascontiguousarray(data)))
     return ma
+
+
+def write_mtz(hklIp, crystal_symmetry, savename, fom=None):
+    """
+    Write array of structure factors (keeping intensities and phases as separate 
+    columns) to an mtz file. Based on cctbx_project/mmtbx/sisa/optimize/mod_mtz.py.
+    
+    Parameters
+    ----------
+    hklIp : numpy.ndarray, shape (n_reflections,5)
+        data in format [h,k,l,I,phi], with phases in degrees
+    crystal_symmetry : crystal.symmetry object
+        instance of cctbx's crystal.symmetry class
+    savename : string
+        path for saving the mtz file
+    fom : numpy.ndarray, shape (n_reflections,)
+        phase figures of merit, ordered as data
+    """
+    # separate input data into distinct arrays, reformatting as needed
+    hkl, I, p = hklIp[:,:3], np.ascontiguousarray(hklIp[:,-2]), np.ascontiguousarray(hklIp[:,-1])
+    F, sigF = np.sqrt(I), np.sqrt(np.sqrt(I))
+    
+    # generate miller array from amplitudes
+    miller_set = miller.set(crystal_symmetry=crystal_symmetry,
+                            indices=flex.miller_index(hkl.astype(np.int32)),
+                            anomalous_flag=False)
+    miller_array_out = miller_set.array(data = flex.double(F),
+                                        sigmas = flex.double(sigF)).set_observation_type_xray_amplitude()
+    
+    # generate mtz dataset
+    mtz_dataset = miller_array_out.as_mtz_dataset(column_root_label="FP")
+    mtz_dataset.add_miller_array(miller_array_out.array(data=flex.double(p)),
+                                 column_root_label='PHIB', column_types='P')
+    if fom is not None:
+        mtz_dataset.add_miller_array(miller_array_out.array(data=flex.double(fom)),
+                                     column_root_label='FOMB', column_types='W')
+    
+    # convert to mtz object and write
+    mtz_dataset.mtz_object().write(file_name=savename)
+        
+    return
